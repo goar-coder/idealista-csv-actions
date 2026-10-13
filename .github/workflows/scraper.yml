@@ -9,6 +9,8 @@ jobs:
   scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write         # Necesario para hacer commit del CSV en el repo
 
     steps:
       - name: Descargar el código
@@ -70,6 +72,26 @@ jobs:
                                     f"| {celda(fila['detalles'])} |\n")
 
               out.write("\n📦 El CSV completo está en el artefacto **resultados-idealista**.\n")
+
+      - name: Guardar el CSV en el repositorio
+        run: |
+          # Copia con nombre fijo para tener siempre a mano el más reciente
+          ultimo=$(ls -t resultados/idealista_2*.csv | head -n 1)
+          cp "$ultimo" resultados/idealista_ultimo.csv
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Solo los CSV; la captura de pantalla se queda en el artefacto
+          git add resultados/*.csv
+
+          if git diff --cached --quiet; then
+            echo "No hay cambios que guardar."
+          else
+            git commit -m "Datos idealista $(date -u +'%Y-%m-%d %H:%M') UTC"
+            git pull --rebase
+            git push
+          fi
 
       - name: Subir CSV y captura como artefacto
         if: always()          # Se sube aunque el scraper falle, para ver la captura
