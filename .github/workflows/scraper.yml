@@ -33,6 +33,44 @@ jobs:
       - name: Ejecutar el scraper
         run: python idealista.py
 
+      - name: Mostrar resultados en el Summary
+        if: always()
+        shell: python
+        run: |
+          import csv, glob, os
+
+          summary = os.environ["GITHUB_STEP_SUMMARY"]
+          archivos = sorted(glob.glob("resultados/*.csv"))
+
+          def celda(valor):
+              # Escapar '|' y saltos de línea para no romper la tabla Markdown
+              return (valor or "").replace("|", "\\|").replace("\n", " ").strip()
+
+          with open(summary, "a", encoding="utf-8") as out:
+              out.write("## 🏠 Resultados de idealista\n\n")
+
+              if not archivos:
+                  out.write("❌ No se generó ningún CSV. Revisa `pantalla.png` en los artefactos.\n")
+              else:
+                  with open(archivos[-1], encoding="utf-8-sig") as f:
+                      filas = list(csv.DictReader(f, delimiter=";"))
+
+                  if not filas:
+                      out.write("⚠️ El CSV está vacío (posible bloqueo de DataDome). "
+                                "Revisa `pantalla.png` en los artefactos.\n")
+                  else:
+                      out.write(f"✅ **{len(filas)} anuncios** · archivo `{os.path.basename(archivos[-1])}`\n\n")
+                      out.write("| # | Anuncio | Precio | Detalles |\n")
+                      out.write("|---:|---|---:|---|\n")
+                      for i, fila in enumerate(filas, 1):
+                          titulo = celda(fila["titulo"])
+                          if fila.get("url"):
+                              titulo = f"[{titulo}]({fila['url']})"
+                          out.write(f"| {i} | {titulo} | {celda(fila['precio'])} "
+                                    f"| {celda(fila['detalles'])} |\n")
+
+              out.write("\n📦 El CSV completo está en el artefacto **resultados-idealista**.\n")
+
       - name: Subir CSV y captura como artefacto
         if: always()          # Se sube aunque el scraper falle, para ver la captura
         uses: actions/upload-artifact@v4
